@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const { protect, authorizeRoles } = require("../middleware/auth");
+const { validateProduct } = require("../middleware/validate");
 
 const router = express.Router();
 
@@ -79,7 +80,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.post("/", protect, authorizeRoles("supplier", "admin"), async (req, res) => {
+router.post("/", protect, authorizeRoles("supplier", "admin"), validateProduct, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({
       message: "Database not connected",
@@ -105,7 +106,7 @@ router.post("/", protect, authorizeRoles("supplier", "admin"), async (req, res) 
   }
 });
 
-router.put("/:id", protect, authorizeRoles("supplier", "admin"), async (req, res) => {
+router.put("/:id", protect, authorizeRoles("supplier", "admin"), validateProduct, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({ message: "Database not connected" });
   }
