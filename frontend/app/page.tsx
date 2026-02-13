@@ -2,13 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { api, type HealthResponse, type Product } from "@/lib/api";
-import { clearAuth, getMe, getStoredUser, type AuthUser } from "@/lib/auth";
+import {
+  api,
+  type BuyerAnalytics,
+  type HealthResponse,
+  type Product,
+  type SupplierAnalytics,
+} from "@/lib/api";
+import { clearAuth, getMe, getStoredToken, getStoredUser, type AuthUser } from "@/lib/auth";
+import StatsCard from "@/components/StatsCard";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 
 export default function Home() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [buyerAnalytics, setBuyerAnalytics] = useState<BuyerAnalytics | null>(null);
+  const [supplierAnalytics, setSupplierAnalytics] = useState<SupplierAnalytics | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,6 +68,32 @@ export default function Home() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      setBuyerAnalytics(null);
+      setSupplierAnalytics(null);
+      setAnalyticsError(null);
+      return;
+    }
+
+    const token = getStoredToken();
+    if (!token) return;
+
+    setAnalyticsError(null);
+    if (user.role === "supplier") {
+      api
+        .getSupplierAnalytics(token)
+        .then((data) => setSupplierAnalytics(data))
+        .catch((err) => setAnalyticsError(err instanceof Error ? err.message : "Failed to load analytics"));
+      return;
+    }
+
+    api
+      .getBuyerAnalytics(token)
+      .then((data) => setBuyerAnalytics(data))
+      .catch((err) => setAnalyticsError(err instanceof Error ? err.message : "Failed to load analytics"));
+  }, [user]);
+
   function handleLogout() {
     clearAuth();
     setUser(null);
@@ -94,6 +131,50 @@ export default function Home() {
           </p>
         </header>
 
+        {user ? (
+          <section className="rounded-xl border border-zinc-200 bg-white p-5">
+            <h2 className="text-lg font-semibold">Your Analytics</h2>
+            {analyticsError ? <p className="mt-2 text-sm text-red-600">{analyticsError}</p> : null}
+
+            {user.role === "supplier" && supplierAnalytics ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <StatsCard label="Total Products" value={supplierAnalytics.totalProducts} />
+                <StatsCard label="Active Products" value={supplierAnalytics.activeProducts} />
+                <StatsCard label="Total Orders" value={supplierAnalytics.totalOrders} />
+                <StatsCard
+                  label="This Month Revenue"
+                  value={formatCurrency(supplierAnalytics.monthRevenue)}
+                />
+              </div>
+            ) : null}
+
+            {(user.role === "buyer" || user.role === "admin") && buyerAnalytics ? (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <StatsCard label="Total Orders" value={buyerAnalytics.totalOrders} />
+                  <StatsCard label="This Month Orders" value={buyerAnalytics.monthOrders} />
+                  <StatsCard label="Total Spent" value={formatCurrency(buyerAnalytics.totalSpent)} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Recent Orders</p>
+                  <ul className="mt-2 space-y-2">
+                    {buyerAnalytics.recentOrders.map((order) => (
+                      <li
+                        key={order._id}
+                        className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm"
+                      >
+                        <span className="font-medium">{formatCurrency(order.totalAmount)}</span>{" "}
+                        <span className="text-zinc-600">· {order.status}</span>{" "}
+                        <span className="text-zinc-500">· {formatDateTime(order.createdAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
         <section className="rounded-xl border border-zinc-200 bg-white p-5">
           <h2 className="text-lg font-semibold">Backend Health</h2>
           {loading && <p className="mt-2 text-sm text-zinc-600">Checking backend...</p>}
@@ -102,7 +183,7 @@ export default function Home() {
             <div className="mt-3 space-y-1 text-sm">
               <p>Status: {health.status}</p>
               <p>Uptime: {Math.round(health.uptime)}s</p>
-              <p>Timestamp: {new Date(health.timestamp).toLocaleString()}</p>
+              <p>Timestamp: {formatDateTime(health.timestamp)}</p>
             </div>
           )}
         </section>

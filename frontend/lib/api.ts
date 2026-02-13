@@ -49,7 +49,30 @@ export type ProductsResponse = {
   message?: string;
 };
 
+export type BuyerAnalytics = {
+  totalOrders: number;
+  monthOrders: number;
+  totalSpent: number;
+  recentOrders: Array<{
+    _id: string;
+    totalAmount: number;
+    status: string;
+    createdAt: string;
+  }>;
+};
+
+export type SupplierAnalytics = {
+  totalProducts: number;
+  activeProducts: number;
+  totalOrders: number;
+  monthRevenue: number;
+};
+
 export const api = {
   getHealth: () => request<HealthResponse>("/health"),
   getProducts: () => request<ProductsResponse>("/api/products"),
+  getBuyerAnalytics: (token: string) =>
+    request<BuyerAnalytics>("/api/analytics/buyer-summary", { token }),
+  getSupplierAnalytics: (token: string) =>
+    request<SupplierAnalytics>("/api/analytics/supplier-summary", { token }),
 };

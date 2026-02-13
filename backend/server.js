@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const connectDB = require("./mongo");
 const authRoutes = require("./routes/auth");
+const analyticsRoutes = require("./routes/analytics");
 const orderRoutes = require("./routes/orders");
 const productRoutes = require("./routes/products");
 
@@ -18,6 +19,7 @@ app.use(
 );
 app.use(express.json());
 app.use("/api/auth", authRoutes);
+app.use("/api/analytics", analyticsRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/products", productRoutes);
 
