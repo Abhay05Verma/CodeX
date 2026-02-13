@@ -4,6 +4,7 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 const { protect, authorizeRoles } = require("../middleware/auth");
 const { validateOrderCreate } = require("../middleware/validate");
+const { ok, fail } = require("../utils/response");
 
 const router = express.Router();
 
@@ -11,7 +12,7 @@ const SUPPLIER_STATUSES = new Set(["confirmed", "preparing", "shipped", "deliver
 
 router.get("/my-orders", protect, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
@@ -23,9 +24,9 @@ router.get("/my-orders", protect, async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(200);
 
-    return res.json({ orders });
+    return ok(res, { orders }, "Orders fetched");
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch orders", error: error.message });
+    return fail(res, 500, "Failed to fetch orders", error.message);
   }
 });
 
@@ -35,7 +36,7 @@ router.get(
   authorizeRoles("supplier", "admin"),
   async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ message: "Database not connected" });
+      return fail(res, 503, "Database not connected");
     }
 
     try {
@@ -47,16 +48,16 @@ router.get(
         .sort({ createdAt: -1 })
         .limit(200);
 
-      return res.json({ orders });
+      return ok(res, { orders }, "Supplier orders fetched");
     } catch (error) {
-      return res.status(500).json({ message: "Failed to fetch supplier orders", error: error.message });
+      return fail(res, 500, "Failed to fetch supplier orders", error.message);
     }
   }
 );
 
 router.get("/:id", protect, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
@@ -65,7 +66,7 @@ router.get("/:id", protect, async (req, res) => {
       .populate("supplier", "name email")
       .populate("items.product", "name price unit image description");
 
-    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (!order) return fail(res, 404, "Order not found");
 
     const buyerId = String(order.buyer?._id || order.buyer);
     const supplierId = String(order.supplier?._id || order.supplier);
@@ -74,27 +75,27 @@ router.get("/:id", protect, async (req, res) => {
       req.user.id !== buyerId &&
       req.user.id !== supplierId
     ) {
-      return res.status(403).json({ message: "Forbidden" });
+      return fail(res, 403, "Forbidden");
     }
 
-    return res.json({ order });
+    return ok(res, { order }, "Order fetched");
   } catch (error) {
-    return res.status(400).json({ message: "Invalid order id", error: error.message });
+    return fail(res, 400, "Invalid order id", error.message);
   }
 });
 
 router.post("/", protect, authorizeRoles("buyer", "admin"), validateOrderCreate, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
     const { items, supplierId, notes } = req.body || {};
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: "Order must contain at least one item" });
+      return fail(res, 400, "Order must contain at least one item");
     }
     if (!supplierId) {
-      return res.status(400).json({ message: "supplierId is required" });
+      return fail(res, 400, "supplierId is required");
     }
 
     let totalAmount = 0;
@@ -104,17 +105,17 @@ router.post("/", protect, authorizeRoles("buyer", "admin"), validateOrderCreate,
     for (const item of items) {
       const product = await Product.findById(item.productId);
       if (!product) {
-        return res.status(404).json({ message: `Product not found: ${item.productId}` });
+        return fail(res, 404, `Product not found: ${item.productId}`);
       }
       if (String(product.supplier) !== supplierObjectId) {
-        return res.status(400).json({ message: "All products must belong to supplierId" });
+        return fail(res, 400, "All products must belong to supplierId");
       }
       const quantity = Number(item.quantity) || 0;
       if (quantity < 1) {
-        return res.status(400).json({ message: "Quantity must be at least 1" });
+        return fail(res, 400, "Quantity must be at least 1");
       }
       if (product.stock < quantity) {
-        return res.status(400).json({ message: `Insufficient stock for ${product.name}` });
+        return fail(res, 400, `Insufficient stock for ${product.name}`);
       }
 
       const lineTotal = product.price * quantity;
@@ -144,9 +145,9 @@ router.post("/", protect, authorizeRoles("buyer", "admin"), validateOrderCreate,
       .populate("supplier", "name email")
       .populate("items.product", "name price unit");
 
-    return res.status(201).json({ order: populated });
+    return ok(res, { order: populated }, "Order created", 201);
   } catch (error) {
-    return res.status(400).json({ message: "Failed to create order", error: error.message });
+    return fail(res, 400, "Failed to create order", error.message);
   }
 });
 
@@ -156,20 +157,20 @@ router.patch(
   authorizeRoles("supplier", "admin"),
   async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ message: "Database not connected" });
+      return fail(res, 503, "Database not connected");
     }
 
     try {
       const { status } = req.body || {};
       if (!SUPPLIER_STATUSES.has(status)) {
-        return res.status(400).json({ message: "Invalid status value" });
+        return fail(res, 400, "Invalid status value");
       }
 
       const order = await Order.findById(req.params.id);
-      if (!order) return res.status(404).json({ message: "Order not found" });
+      if (!order) return fail(res, 404, "Order not found");
 
       if (req.user.role !== "admin" && String(order.supplier) !== req.user.id) {
-        return res.status(403).json({ message: "You can only update your supplier orders" });
+        return fail(res, 403, "You can only update your supplier orders");
       }
 
       order.status = status;
@@ -180,42 +181,42 @@ router.patch(
         .populate("supplier", "name email")
         .populate("items.product", "name price unit image");
 
-      return res.json({ order: populated });
+      return ok(res, { order: populated }, "Order status updated");
     } catch (error) {
-      return res.status(400).json({ message: "Failed to update order status", error: error.message });
+      return fail(res, 400, "Failed to update order status", error.message);
     }
   }
 );
 
 router.post("/:id/review", protect, authorizeRoles("buyer", "admin"), async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
     const { rating, review = "" } = req.body || {};
     const parsedRating = Number(rating);
     if (!Number.isFinite(parsedRating) || parsedRating < 1 || parsedRating > 5) {
-      return res.status(400).json({ message: "rating must be between 1 and 5" });
+      return fail(res, 400, "rating must be between 1 and 5");
     }
 
     const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (!order) return fail(res, 404, "Order not found");
 
     if (req.user.role !== "admin" && String(order.buyer) !== req.user.id) {
-      return res.status(403).json({ message: "You can only review your own orders" });
+      return fail(res, 403, "You can only review your own orders");
     }
     if (order.status !== "delivered") {
-      return res.status(400).json({ message: "Only delivered orders can be reviewed" });
+      return fail(res, 400, "Only delivered orders can be reviewed");
     }
 
     order.rating = parsedRating;
     order.review = String(review);
     await order.save();
 
-    return res.json({ order });
+    return ok(res, { order }, "Order reviewed");
   } catch (error) {
-    return res.status(400).json({ message: "Failed to add review", error: error.message });
+    return fail(res, 400, "Failed to add review", error.message);
   }
 });
 

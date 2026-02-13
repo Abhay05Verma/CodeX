@@ -3,12 +3,13 @@ const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 const { protect } = require("../middleware/auth");
+const { ok, fail } = require("../utils/response");
 
 const router = express.Router();
 
 router.get("/buyer-summary", protect, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
@@ -25,20 +26,20 @@ router.get("/buyer-summary", protect, async (req, res) => {
       Order.find({ buyer: userId }).sort({ createdAt: -1 }).limit(5),
     ]);
 
-    return res.json({
+    return ok(res, {
       totalOrders,
       monthOrders,
       totalSpent: deliveredSpend[0]?.total || 0,
       recentOrders,
-    });
+    }, "Buyer analytics fetched");
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch buyer analytics", error: error.message });
+    return fail(res, 500, "Failed to fetch buyer analytics", error.message);
   }
 });
 
 router.get("/supplier-summary", protect, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
@@ -61,14 +62,14 @@ router.get("/supplier-summary", protect, async (req, res) => {
       ]),
     ]);
 
-    return res.json({
+    return ok(res, {
       totalProducts,
       activeProducts,
       totalOrders,
       monthRevenue: monthRevenue[0]?.total || 0,
-    });
+    }, "Supplier analytics fetched");
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch supplier analytics", error: error.message });
+    return fail(res, 500, "Failed to fetch supplier analytics", error.message);
   }
 });
 
