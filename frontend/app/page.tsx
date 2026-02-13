@@ -110,6 +110,12 @@ export default function Home() {
                 <span className="text-zinc-600">
                   Signed in as {user.name} ({user.role})
                 </span>
+                <Link
+                  href={user.role === "supplier" ? "/supplier" : "/buyer"}
+                  className="rounded-md border border-zinc-300 px-3 py-1 hover:bg-zinc-100"
+                >
+                  Open {user.role === "supplier" ? "Supplier" : "Buyer"} Dashboard
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="rounded-md border border-zinc-300 px-3 py-1 hover:bg-zinc-100"
