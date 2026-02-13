@@ -1,0 +1,11 @@
+# Render Blueprint – backend service
+# Set Root Directory to "backend" in the Render dashboard if not using this file.
+services:
+  - type: web
+    name: codex-backend
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
