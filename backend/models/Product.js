@@ -46,6 +46,15 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: "https://placehold.co/300x200?text=Product",
     },
+    rating: { type: Number, default: 0, min: 0, max: 5 },
+    reviewCount: { type: Number, default: 0 },
+    minOrderQuantity: { type: Number, default: 1 },
+    bulkDiscount: {
+      enabled: { type: Boolean, default: false },
+      tiers: [{ minQuantity: Number, discountPercentage: Number }],
+    },
+    tags: [String],
+    isFeatured: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

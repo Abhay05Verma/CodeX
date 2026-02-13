@@ -20,6 +20,16 @@ async function listProducts(req, res) {
   }
 }
 
+async function listMyProducts(req, res) {
+  if (!requireDb(res)) return;
+  try {
+    const data = await productService.listMyProducts(req.user.id);
+    return ok(res, data, "My products fetched");
+  } catch (error) {
+    return fail(res, 500, "Failed to fetch my products", error.message);
+  }
+}
+
 async function getProduct(req, res) {
   if (!requireDb(res)) return;
   try {
@@ -67,6 +77,7 @@ async function deleteProduct(req, res) {
 
 module.exports = {
   listProducts,
+  listMyProducts,
   getProduct,
   createProduct,
   updateProduct,

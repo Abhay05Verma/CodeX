@@ -6,6 +6,8 @@ function buildListQuery(query = {}) {
     category,
     status,
     supplier,
+    minPrice,
+    maxPrice,
     page = "1",
     limit = "20",
     sort = "latest",
@@ -19,6 +21,14 @@ function buildListQuery(query = {}) {
   if (category) filter.category = category;
   if (status) filter.status = status;
   if (supplier) filter.supplier = supplier;
+  if (minPrice != null && minPrice !== "") {
+    const n = parseFloat(minPrice);
+    if (Number.isFinite(n)) { filter.price = filter.price || {}; filter.price.$gte = n; }
+  }
+  if (maxPrice != null && maxPrice !== "") {
+    const n = parseFloat(maxPrice);
+    if (Number.isFinite(n)) { filter.price = filter.price || {}; filter.price.$lte = n; }
+  }
 
   const sortBy = sort === "price_asc"
     ? { price: 1 }
@@ -97,8 +107,16 @@ async function deleteProduct(id, user) {
   return true;
 }
 
+async function listMyProducts(userId) {
+  const products = await Product.find({ supplier: userId })
+    .populate("supplier", "name email")
+    .sort({ createdAt: -1 });
+  return { products, meta: { total: products.length, page: 1, limit: products.length, totalPages: 1 } };
+}
+
 module.exports = {
   listProducts,
+  listMyProducts,
   getProductById,
   createProduct,
   updateProduct,

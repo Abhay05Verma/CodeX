@@ -11,12 +11,28 @@ function signToken(userId) {
   return jwt.sign({ userId: String(userId) }, secret, { expiresIn: TOKEN_TTL });
 }
 
+function toUserPayload(user) {
+  const u = user.toObject ? user.toObject() : user;
+  delete u.passwordHash;
+  return {
+    id: String(u._id),
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    phone: u.phone,
+    address: u.address,
+    profilePic: u.profilePic,
+    businessName: u.businessName,
+    gstin: u.gstin,
+  };
+}
+
 async function register(req, res) {
   if (mongoose.connection.readyState !== 1) {
     return fail(res, 503, "Database not connected");
   }
 
-  const { name, email, password, role } = req.body || {};
+  const { name, email, password, role, phone, address, businessName, gstin } = req.body || {};
   if (!name || !email || !password) {
     return fail(res, 400, "name, email and password are required");
   }
@@ -24,21 +40,21 @@ async function register(req, res) {
   const exists = await User.findOne({ email: String(email).toLowerCase().trim() });
   if (exists) return fail(res, 409, "User already exists");
 
-  const user = await User.create({
+  const payload = {
     name: String(name).trim(),
     email: String(email).toLowerCase().trim(),
     passwordHash: await bcrypt.hash(String(password), 12),
     role: role || "buyer",
-  });
+  };
+  if (phone != null) payload.phone = String(phone).trim();
+  if (address != null) payload.address = typeof address === "object" ? address : { street: String(address) };
+  if (businessName != null) payload.businessName = String(businessName).trim();
+  if (gstin != null) payload.gstin = String(gstin).trim();
 
+  const user = await User.create(payload);
   const token = signToken(user._id);
 
-  return ok(
-    res,
-    { user: { id: user._id, name: user.name, email: user.email, role: user.role }, token },
-    "User registered",
-    201
-  );
+  return ok(res, { user: toUserPayload(user), token }, "User registered", 201);
 }
 
 async function login(req, res) {
@@ -57,21 +73,28 @@ async function login(req, res) {
     return fail(res, 401, "Invalid credentials");
   }
 
-  const token = signToken(user._id);
+  if (user.isActive === false) {
+    return fail(res, 401, "Account is deactivated");
+  }
 
-  return ok(
-    res,
-    { user: { id: user._id, name: user.name, email: user.email, role: user.role }, token },
-    "Login successful"
-  );
+  user.lastLogin = new Date();
+  await user.save({ validateBeforeSave: false });
+
+  const token = signToken(user._id);
+  return ok(res, { user: toUserPayload(user), token }, "Login successful");
 }
 
 async function getMe(req, res) {
   return ok(res, { user: req.user }, "Current user");
 }
 
+async function logout(req, res) {
+  return ok(res, {}, "Logged out successfully");
+}
+
 module.exports = {
   register,
   login,
   getMe,
+  logout,
 };

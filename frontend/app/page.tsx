@@ -19,7 +19,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { clearAuth, getMe, register, type AuthUser, login as loginUser } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { getMe, getStoredToken, register, type AuthUser, login as loginUser } from "@/lib/auth";
 
 type Language = "en" | "hi";
 type ModalType = "login" | "vendor" | "supplier" | null;
@@ -30,7 +31,7 @@ type BaseAuthFormProps = {
   subtitle: string;
   gradientClass: string;
   onClose: () => void;
-  onSubmit: (values: Record<string, string>) => Promise<void>;
+  onSubmit: (values: Record<string, string>) => Promise<AuthUser | void>;
   fields: Array<{ key: string; labelEn: string; labelHi: string; type?: string; required?: boolean }>;
   submitLabelEn: string;
   submitLabelHi: string;
@@ -103,9 +104,13 @@ function AuthModal({
 
     try {
       setSubmitting(true);
-      await onSubmit(form);
+      const user = await onSubmit(form);
       onClose();
-      window.location.href = "/";
+      if (user) {
+        window.location.href = user.role === "supplier" ? "/supplier" : "/buyer";
+      } else {
+        window.location.href = "/";
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -120,40 +125,41 @@ function AuthModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className={`p-6 text-white ${gradientClass}`}>
+      <div className="relative flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className={`flex-shrink-0 p-6 text-white ${gradientClass}`}>
           <button
+            type="button"
             onClick={onClose}
-            className="absolute right-4 top-4 text-white transition-colors hover:text-zinc-200"
+            className="absolute right-4 top-4 text-white/90 transition-colors hover:text-white"
           >
-            <X className="h-5 w-5" />
+            <X className="h-6 w-6" />
           </button>
           <h2 className="text-center text-2xl font-bold">{title}</h2>
-          <p className="mt-1 text-center text-sm text-white/90">{subtitle}</p>
+          <p className="mt-2 text-center text-sm text-white/90">{subtitle}</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto p-6">
+        <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto p-6">
           {fields.map((field) => {
             const isPassword = field.type === "password";
             const isConfirm = field.key === "confirmPassword";
             const show = isPassword && (isConfirm ? showConfirmPassword : showPassword);
             return (
               <label key={field.key} className="block">
-                <span className="mb-1 block text-sm font-medium text-zinc-700">
+                <span className="mb-2 block text-sm font-medium text-gray-700">
                   {language === "hi" ? field.labelHi : field.labelEn}
                 </span>
                 <div className="relative">
                   {field.type === "email" ? (
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   ) : field.type === "password" ? (
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   ) : (
-                    <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <User className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   )}
                   <input
                     type={isPassword ? (show ? "text" : "password") : field.type || "text"}
                     value={form[field.key] || ""}
                     onChange={(e) => setForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                    className="w-full rounded-lg border border-zinc-300 py-2 pl-9 pr-10 text-sm outline-none focus:border-indigo-500"
+                    className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-10 text-sm outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                   />
                   {isPassword ? (
                     <button
@@ -169,12 +175,16 @@ function AuthModal({
             );
           })}
 
-          {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+          {error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          ) : null}
 
           <button
             type="submit"
             disabled={submitting}
-            className={`w-full rounded-lg py-2 text-sm font-semibold text-white ${gradientClass} disabled:opacity-60`}
+            className={`w-full rounded-lg py-3 text-base font-semibold text-white transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-60 hover:scale-[1.02] ${gradientClass}`}
           >
             {submitting ? (
               <span className="inline-flex items-center gap-2">
@@ -197,6 +207,7 @@ export default function HomePage() {
   const [language, setLanguage] = useState<Language>("en");
   const [modal, setModal] = useState<ModalType>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     getMe()
@@ -204,10 +215,21 @@ export default function HomePage() {
       .catch(() => setUser(null));
   }, []);
 
-  function logout() {
-    clearAuth();
-    setUser(null);
-  }
+  useEffect(() => {
+    if (user?.role !== "supplier") {
+      setNotificationCount(0);
+      return;
+    }
+    const token = getStoredToken();
+    if (!token) return;
+    api
+      .getSupplierOrders(token)
+      .then((data) => {
+        const pending = (data?.orders ?? []).filter((o) => o.status === "pending");
+        setNotificationCount(pending.length);
+      })
+      .catch(() => setNotificationCount(0));
+  }, [user?.role]);
 
   const features = [
     {
@@ -237,35 +259,33 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 text-zinc-900">
-      <header className="relative z-20 bg-white/85 py-4 shadow-sm backdrop-blur-sm">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 text-gray-900">
+      <div className="absolute inset-0 bg-grid-pattern opacity-30" aria-hidden />
+      <header className="relative z-20 bg-white/90 py-4 shadow-lg backdrop-blur-sm">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <h1 className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-3xl font-bold text-transparent">
             Ventrest
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setLanguage((l) => (l === "en" ? "hi" : "en"))}
-              className="inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 py-1 text-sm"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 transition-colors duration-300 hover:text-indigo-600"
             >
               <Globe className="h-4 w-4" />
               {language === "hi" ? "भाषा" : "Language"}
             </button>
             {user ? (
-              <>
-                <Link
-                  href={user.role === "supplier" ? "/supplier" : "/buyer"}
-                  className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-sm"
-                >
-                  {language === "hi" ? "डैशबोर्ड" : "Dashboard"}
-                </Link>
-                <button
-                  onClick={logout}
-                  className="rounded-md border border-red-300 bg-white px-3 py-1 text-sm text-red-700"
-                >
-                  {language === "hi" ? "लॉगआउट" : "Logout"}
-                </button>
-              </>
+              <Link
+                href={user.role === "supplier" ? "/supplier" : "/buyer"}
+                className="relative inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-300 hover:bg-indigo-700"
+              >
+                {language === "hi" ? "डैशबोर्ड" : "Dashboard"}
+                {user.role === "supplier" && notificationCount > 0 ? (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-medium text-white">
+                    {notificationCount > 99 ? "99+" : notificationCount}
+                  </span>
+                ) : null}
+              </Link>
             ) : null}
           </div>
         </div>
@@ -276,79 +296,88 @@ export default function HomePage() {
           <h2 className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-5xl font-black text-transparent md:text-6xl">
             {language === "hi" ? "वेंटरेस्ट" : "Ventrest"}
           </h2>
-          <p className="mt-3 text-xl font-bold md:text-2xl">
+          <p className="mt-4 text-xl font-bold text-gray-800 md:text-2xl">
             {language === "hi" ? "सड़क भोजन में नई क्रांति!" : "Street Food Revolution!"}
           </p>
-          <p className="mx-auto mt-3 max-w-3xl text-base text-zinc-600 md:text-lg">
+          <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-gray-600 md:text-lg">
             {language === "hi"
               ? "सड़क भोजन व्यवसायों को विश्वसनीय आपूर्तिकर्ताओं से जोड़ने वाला एक अभिनव मंच"
               : "An innovative platform connecting street food businesses with trusted suppliers"}
           </p>
         </div>
 
-        <div className="mb-6 grid w-full max-w-4xl gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600">
-              <UserPlus className="h-6 w-6 text-white" />
+        <div className="mb-6 flex w-full max-w-4xl flex-col gap-4 md:flex-row">
+          <div className="group flex-1">
+            <div className="flex h-full flex-col rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 transition-transform duration-300 group-hover:scale-110">
+                <UserPlus className="h-6 w-6 text-white" />
+              </div>
+              <h3 className="mb-3 text-xl font-bold text-gray-800">
+                {language === "hi" ? "स्ट्रीट फूड वेंडर" : "Street Food Vendor"}
+              </h3>
+              <p className="mb-4 flex-1 text-sm leading-relaxed text-gray-600">
+                {language === "hi"
+                  ? "अपने व्यवसाय को बढ़ाएं और गुणवत्तापूर्ण आपूर्तिकर्ताओं से जुड़ें"
+                  : "Grow your business and connect with quality suppliers"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setModal("vendor")}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 text-base font-semibold text-white transition-all duration-300 hover:scale-[1.02] hover:from-blue-600 hover:to-blue-700"
+              >
+                {language === "hi" ? "वेंडर पंजीकरण" : "Vendor Registration"}
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
-            <h3 className="mb-3 text-xl font-bold">
-              {language === "hi" ? "स्ट्रीट फूड वेंडर" : "Street Food Vendor"}
-            </h3>
-            <p className="mb-4 text-sm text-zinc-600">
-              {language === "hi"
-                ? "अपने व्यवसाय को बढ़ाएं और गुणवत्तापूर्ण आपूर्तिकर्ताओं से जुड़ें"
-                : "Grow your business and connect with quality suppliers"}
-            </p>
-            <button
-              onClick={() => setModal("vendor")}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 text-base font-semibold text-white"
-            >
-              {language === "hi" ? "वेंडर पंजीकरण" : "Vendor Registration"}
-              <ArrowRight className="h-4 w-4" />
-            </button>
           </div>
 
-          <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-green-600">
-              <Store className="h-6 w-6 text-white" />
+          <div className="group flex-1">
+            <div className="flex h-full flex-col rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-green-600 transition-transform duration-300 group-hover:scale-110">
+                <Store className="h-6 w-6 text-white" />
+              </div>
+              <h3 className="mb-3 text-xl font-bold text-gray-800">
+                {language === "hi" ? "आपूर्तिकर्ता" : "Supplier"}
+              </h3>
+              <p className="mb-4 flex-1 text-sm leading-relaxed text-gray-600">
+                {language === "hi"
+                  ? "अपने उत्पादों को नए ग्राहकों तक पहुंचाएं और बिक्री बढ़ाएं"
+                  : "Reach new customers and increase sales with your products"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setModal("supplier")}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-4 py-3 text-base font-semibold text-white transition-all duration-300 hover:scale-[1.02] hover:from-green-600 hover:to-green-700"
+              >
+                {language === "hi" ? "आपूर्तिकर्ता पंजीकरण" : "Supplier Registration"}
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
-            <h3 className="mb-3 text-xl font-bold">{language === "hi" ? "आपूर्तिकर्ता" : "Supplier"}</h3>
-            <p className="mb-4 text-sm text-zinc-600">
-              {language === "hi"
-                ? "अपने उत्पादों को नए ग्राहकों तक पहुंचाएं और बिक्री बढ़ाएं"
-                : "Reach new customers and increase sales with your products"}
-            </p>
-            <button
-              onClick={() => setModal("supplier")}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-4 py-3 text-base font-semibold text-white"
-            >
-              {language === "hi" ? "आपूर्तिकर्ता पंजीकरण" : "Supplier Registration"}
-              <ArrowRight className="h-4 w-4" />
-            </button>
           </div>
         </div>
 
         {!user ? (
-          <div className="mb-8 rounded-2xl border border-white/20 bg-white/80 p-5 shadow-lg backdrop-blur-sm">
-            <p className="mb-3 text-sm text-zinc-700">
+          <div className="mb-8 max-w-md rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <p className="mb-3 text-base text-gray-700">
               {language === "hi" ? "पहले से ही खाता है?" : "Already have an account?"}
             </p>
             <button
+              type="button"
               onClick={() => setModal("login")}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-2 text-sm font-semibold text-white"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white transition-all duration-300 hover:scale-[1.02] hover:from-indigo-600 hover:to-purple-600"
             >
               <CheckCircle className="h-4 w-4" />
               {language === "hi" ? "यहाँ लॉगिन करें" : "Login Here"}
             </button>
           </div>
         ) : (
-          <div className="mb-8 rounded-2xl border border-white/20 bg-white/80 p-5 shadow-lg backdrop-blur-sm">
-            <p className="mb-3 text-sm text-zinc-700">
+          <div className="mb-8 max-w-md rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <p className="mb-3 text-base text-gray-700">
               {language === "hi" ? "स्वागत है" : "Welcome"}, {user.name}
             </p>
             <Link
               href={user.role === "supplier" ? "/supplier" : "/buyer"}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-2 text-sm font-semibold text-white"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white transition-all duration-300 hover:scale-[1.02] hover:from-indigo-600 hover:to-purple-600"
             >
               {language === "hi" ? "डैशबोर्ड खोलें" : "Open Dashboard"}
             </Link>
@@ -356,17 +385,20 @@ export default function HomePage() {
         )}
 
         <div className="w-full max-w-5xl">
-          <h3 className="mb-5 text-2xl font-bold">
+          <h3 className="mb-6 text-2xl font-bold text-gray-800">
             {language === "hi" ? "क्यों वेंटरेस्ट चुनें?" : "Why Choose Ventrest?"}
           </h3>
           <div className="grid gap-4 md:grid-cols-3">
             {features.map((feature, i) => (
-              <div key={i} className="rounded-xl border border-white/20 bg-white/70 p-4 text-left">
+              <div
+                key={i}
+                className="rounded-xl border border-white/20 bg-white/60 p-4 text-left backdrop-blur-sm transition-all duration-300 hover:bg-white/80"
+              >
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 text-white">
                   {feature.icon}
                 </div>
-                <h4 className="mb-1 text-lg font-semibold">{feature.title}</h4>
-                <p className="text-sm text-zinc-600">{feature.description}</p>
+                <h4 className="mb-2 text-lg font-semibold text-gray-800">{feature.title}</h4>
+                <p className="text-sm text-gray-600">{feature.description}</p>
               </div>
             ))}
           </div>
@@ -395,7 +427,7 @@ export default function HomePage() {
           submitLabelEn="Login"
           submitLabelHi="लॉगिन करें"
           onSubmit={async (values) => {
-            await loginUser(values.email, values.password);
+            return loginUser(values.email, values.password);
           }}
         />
       ) : null}
@@ -431,7 +463,7 @@ export default function HomePage() {
           submitLabelEn="Register"
           submitLabelHi="पंजीकरण करें"
           onSubmit={async (values) => {
-            await register({
+            return register({
               name: values.name,
               email: values.email,
               password: values.password,
@@ -480,7 +512,7 @@ export default function HomePage() {
           submitLabelEn="Register"
           submitLabelHi="पंजीकरण करें"
           onSubmit={async (values) => {
-            await register({
+            return register({
               name: values.name,
               email: values.email,
               password: values.password,

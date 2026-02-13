@@ -16,12 +16,18 @@ async function protect(req, res, next) {
 
     const user = await User.findById(decoded.userId).select("-passwordHash");
     if (!user) return fail(res, 401, "User not found");
+    if (user.isActive === false) return fail(res, 401, "Account is deactivated");
 
     req.user = {
       id: String(user._id),
       name: user.name,
       email: user.email,
       role: user.role,
+      phone: user.phone,
+      address: user.address,
+      profilePic: user.profilePic,
+      businessName: user.businessName,
+      gstin: user.gstin,
     };
     return next();
   } catch (_error) {

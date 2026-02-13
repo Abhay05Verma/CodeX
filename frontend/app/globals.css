@@ -24,3 +24,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Subtle grid background for landing (ASUUS-style) */
+.bg-grid-pattern {
+  background-image: linear-gradient(to right, rgb(148 163 184 / 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(148 163 184 / 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}

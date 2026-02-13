@@ -58,6 +58,8 @@ export type Product = {
   unit: string;
   stock: number;
   category: string;
+  image?: string;
+  status?: string;
   supplier?: string | { _id: string; name?: string; email?: string };
 };
 
@@ -76,13 +78,18 @@ export type BuyerAnalytics = {
     status: string;
     createdAt: string;
   }>;
+  categoryBreakdown?: Array<{ _id: string; total: number; count: number }>;
 };
 
 export type SupplierAnalytics = {
   totalProducts: number;
   activeProducts: number;
   totalOrders: number;
+  thisMonthOrders?: number;
+  totalRevenue?: number;
   monthRevenue: number;
+  recentOrders?: Order[];
+  topProducts?: Array<{ _id: string; name: string; totalSold: number; totalRevenue: number }>;
 };
 
 export type Order = {
@@ -101,9 +108,31 @@ export type Order = {
   }>;
 };
 
+export type ProductsQuery = {
+  q?: string;
+  category?: string;
+  status?: string;
+  supplier?: string;
+  minPrice?: number | string;
+  maxPrice?: number | string;
+  page?: number | string;
+  limit?: number | string;
+  sort?: "latest" | "price_asc" | "price_desc";
+};
+
 export const api = {
   getHealth: () => request<HealthResponse>("/health"),
-  getProducts: () => request<ProductsResponse>("/api/products"),
+  getProducts: (query?: ProductsQuery) => {
+    const params = query ? new URLSearchParams(query as Record<string, string>).toString() : "";
+    return request<ProductsResponse & { meta?: { total: number; page: number; limit: number; totalPages: number } }>(
+      `/api/products${params ? `?${params}` : ""}`
+    );
+  },
+  getMyProducts: (token: string) =>
+    request<{ products: Product[]; meta: { total: number; page: number; limit: number; totalPages: number } }>(
+      "/api/products/my-products",
+      { token }
+    ),
   createProduct: (
     token: string,
     payload: {
@@ -134,6 +163,7 @@ export const api = {
   deleteProduct: (token: string, id: string) =>
     request<Record<string, never>>(`/api/products/${id}`, { token, method: "DELETE" }),
   getMyOrders: (token: string) => request<{ orders: Order[] }>("/api/orders/my-orders", { token }),
+  getSupplierOrders: (token: string) => request<{ orders: Order[] }>("/api/orders/supplier-orders", { token }),
   createOrder: (
     token: string,
     payload: {

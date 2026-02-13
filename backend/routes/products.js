@@ -3,6 +3,7 @@ const { protect, authorizeRoles } = require("../middleware/auth");
 const { validateProduct } = require("../middleware/validate");
 const {
   listProducts,
+  listMyProducts,
   getProduct,
   createProduct,
   updateProduct,
@@ -12,6 +13,7 @@ const {
 const router = express.Router();
 
 router.get("/", listProducts);
+router.get("/my-products", protect, authorizeRoles("supplier", "admin"), listMyProducts);
 router.get("/:id", getProduct);
 router.post("/", protect, authorizeRoles("supplier", "admin"), validateProduct, createProduct);
 router.put("/:id", protect, authorizeRoles("supplier", "admin"), validateProduct, updateProduct);

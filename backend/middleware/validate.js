@@ -9,7 +9,7 @@ function isNumber(value) {
 }
 
 function validateRegister(req, res, next) {
-  const { name, email, password, role } = req.body || {};
+  const { name, email, password, role, phone, address, businessName, gstin } = req.body || {};
   if (!isNonEmptyString(name)) {
     return fail(res, 400, "name is required");
   }
@@ -22,6 +22,9 @@ function validateRegister(req, res, next) {
   if (role && !["buyer", "supplier", "admin"].includes(role)) {
     return fail(res, 400, "invalid role");
   }
+  if (phone != null && typeof phone !== "string") return fail(res, 400, "phone must be a string");
+  if (businessName != null && typeof businessName !== "string") return fail(res, 400, "businessName must be a string");
+  if (gstin != null && typeof gstin !== "string") return fail(res, 400, "gstin must be a string");
   return next();
 }
 
