@@ -11,6 +11,16 @@ export type AuthUser = {
   role: "buyer" | "supplier" | "admin";
 };
 
+type RegisterPayload = {
+  name: string;
+  email: string;
+  password: string;
+  role: "buyer" | "supplier";
+  phone?: string;
+  businessName?: string;
+  gstin?: string;
+};
+
 type LoginResponse = {
   user: AuthUser;
   token: string;
@@ -46,12 +56,16 @@ export function getStoredUser(): AuthUser | null {
 function storeAuth(user: AuthUser, token: string) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.setItem("token", token);
+  localStorage.setItem("user", JSON.stringify(user));
 }
 
 export function clearAuth() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
@@ -105,5 +119,32 @@ export async function getMe(): Promise<AuthUser> {
   }
 
   localStorage.setItem(USER_KEY, JSON.stringify(payload.user));
+  localStorage.setItem("user", JSON.stringify(payload.user));
+  return payload.user;
+}
+
+export async function register(input: RegisterPayload): Promise<AuthUser> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  const raw = (await response.json()) as
+    | (Partial<LoginResponse> & { message?: string; error?: { message?: string } })
+    | ApiEnvelope<LoginResponse>;
+  const payload =
+    "success" in raw
+      ? (raw.data as Partial<LoginResponse> | undefined)
+      : (raw as Partial<LoginResponse>);
+  const message =
+    ("success" in raw ? raw.error?.message || raw.message : raw.error?.message || raw.message) ||
+    "Registration failed";
+
+  if (!response.ok || !payload?.user || !payload?.token) {
+    throw new Error(message);
+  }
+
+  storeAuth(payload.user, payload.token);
   return payload.user;
 }

@@ -3,221 +3,495 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  api,
-  type BuyerAnalytics,
-  type HealthResponse,
-  type Product,
-  type SupplierAnalytics,
-} from "@/lib/api";
-import { clearAuth, getMe, getStoredToken, getStoredUser, type AuthUser } from "@/lib/auth";
-import StatsCard from "@/components/StatsCard";
-import { formatCurrency, formatDateTime } from "@/lib/format";
+  ArrowRight,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  Globe,
+  Loader2,
+  Lock,
+  Mail,
+  Star,
+  Store,
+  Truck,
+  User,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
+import { clearAuth, getMe, register, type AuthUser, login as loginUser } from "@/lib/auth";
 
-export default function Home() {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [buyerAnalytics, setBuyerAnalytics] = useState<BuyerAnalytics | null>(null);
-  const [supplierAnalytics, setSupplierAnalytics] = useState<SupplierAnalytics | null>(null);
-  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+type Language = "en" | "hi";
+type ModalType = "login" | "vendor" | "supplier" | null;
+
+type BaseAuthFormProps = {
+  language: Language;
+  title: string;
+  subtitle: string;
+  gradientClass: string;
+  onClose: () => void;
+  onSubmit: (values: Record<string, string>) => Promise<void>;
+  fields: Array<{ key: string; labelEn: string; labelHi: string; type?: string; required?: boolean }>;
+  submitLabelEn: string;
+  submitLabelHi: string;
+};
+
+function AuthModal({
+  language,
+  title,
+  subtitle,
+  gradientClass,
+  onClose,
+  onSubmit,
+  fields,
+  submitLabelEn,
+  submitLabelHi,
+}: BaseAuthFormProps) {
+  const initialState = useMemo(() => {
+    const s: Record<string, string> = {};
+    for (const f of fields) s[f.key] = "";
+    return s;
+  }, [fields]);
+
+  const [form, setForm] = useState<Record<string, string>>(initialState);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const apiBase = useMemo(
-    () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000",
-    []
-  );
 
   useEffect(() => {
-    let active = true;
+    document.body.style.overflow = "hidden";
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      document.body.style.overflow = "unset";
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [onClose]);
 
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
-        const [healthData, productsData] = await Promise.all([
-          api.getHealth(),
-          api.getProducts(),
-        ]);
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
 
-        if (!active) return;
-        setHealth(healthData);
-        setProducts(productsData.products || []);
-      } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Failed to load API data");
-      } finally {
-        if (active) setLoading(false);
+    for (const field of fields) {
+      if (field.required && !String(form[field.key] || "").trim()) {
+        setError(
+          language === "hi"
+            ? `${field.labelHi} आवश्यक है`
+            : `${field.labelEn} is required`
+        );
+        return;
       }
     }
+    if (form.password && form.password.length < 6) {
+      setError(
+        language === "hi"
+          ? "पासवर्ड कम से कम 6 अक्षर होना चाहिए"
+          : "Password must be at least 6 characters"
+      );
+      return;
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(form, "confirmPassword") &&
+      form.password !== form.confirmPassword
+    ) {
+      setError(language === "hi" ? "पासवर्ड मेल नहीं खाते" : "Passwords do not match");
+      return;
+    }
 
-    load();
-    return () => {
-      active = false;
-    };
-  }, []);
+    try {
+      setSubmitting(true);
+      await onSubmit(form);
+      onClose();
+      window.location.href = "/";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className={`p-6 text-white ${gradientClass}`}>
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-4 text-white transition-colors hover:text-zinc-200"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <h2 className="text-center text-2xl font-bold">{title}</h2>
+          <p className="mt-1 text-center text-sm text-white/90">{subtitle}</p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto p-6">
+          {fields.map((field) => {
+            const isPassword = field.type === "password";
+            const isConfirm = field.key === "confirmPassword";
+            const show = isPassword && (isConfirm ? showConfirmPassword : showPassword);
+            return (
+              <label key={field.key} className="block">
+                <span className="mb-1 block text-sm font-medium text-zinc-700">
+                  {language === "hi" ? field.labelHi : field.labelEn}
+                </span>
+                <div className="relative">
+                  {field.type === "email" ? (
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  ) : field.type === "password" ? (
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  ) : (
+                    <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  )}
+                  <input
+                    type={isPassword ? (show ? "text" : "password") : field.type || "text"}
+                    value={form[field.key] || ""}
+                    onChange={(e) => setForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    className="w-full rounded-lg border border-zinc-300 py-2 pl-9 pr-10 text-sm outline-none focus:border-indigo-500"
+                  />
+                  {isPassword ? (
+                    <button
+                      type="button"
+                      onClick={() => (isConfirm ? setShowConfirmPassword((v) => !v) : setShowPassword((v) => !v))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                    >
+                      {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  ) : null}
+                </div>
+              </label>
+            );
+          })}
+
+          {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className={`w-full rounded-lg py-2 text-sm font-semibold text-white ${gradientClass} disabled:opacity-60`}
+          >
+            {submitting ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {language === "hi" ? "कृपया प्रतीक्षा करें..." : "Please wait..."}
+              </span>
+            ) : language === "hi" ? (
+              submitLabelHi
+            ) : (
+              submitLabelEn
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function HomePage() {
+  const [language, setLanguage] = useState<Language>("en");
+  const [modal, setModal] = useState<ModalType>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    const cached = getStoredUser();
-    if (cached) setUser(cached);
-
     getMe()
       .then((me) => setUser(me))
-      .catch(() => {
-        if (!cached) setUser(null);
-      });
+      .catch(() => setUser(null));
   }, []);
 
-  useEffect(() => {
-    if (!user) {
-      setBuyerAnalytics(null);
-      setSupplierAnalytics(null);
-      setAnalyticsError(null);
-      return;
-    }
-
-    const token = getStoredToken();
-    if (!token) return;
-
-    setAnalyticsError(null);
-    if (user.role === "supplier") {
-      api
-        .getSupplierAnalytics(token)
-        .then((data) => setSupplierAnalytics(data))
-        .catch((err) => setAnalyticsError(err instanceof Error ? err.message : "Failed to load analytics"));
-      return;
-    }
-
-    api
-      .getBuyerAnalytics(token)
-      .then((data) => setBuyerAnalytics(data))
-      .catch((err) => setAnalyticsError(err instanceof Error ? err.message : "Failed to load analytics"));
-  }, [user]);
-
-  function handleLogout() {
+  function logout() {
     clearAuth();
     setUser(null);
   }
 
+  const features = [
+    {
+      icon: <Users className="h-5 w-5" />,
+      title: language === "hi" ? "विश्वसनीय आपूर्तिकर्ता" : "Trusted Suppliers",
+      description:
+        language === "hi"
+          ? "सत्यापित और विश्वसनीय आपूर्तिकर्ताओं से जुड़ें"
+          : "Connect with verified and reliable suppliers",
+    },
+    {
+      icon: <Truck className="h-5 w-5" />,
+      title: language === "hi" ? "तेज़ डिलीवरी" : "Fast Delivery",
+      description:
+        language === "hi"
+          ? "समय पर और कुशल डिलीवरी सेवाएं"
+          : "Timely and efficient delivery services",
+    },
+    {
+      icon: <Star className="h-5 w-5" />,
+      title: language === "hi" ? "गुणवत्ता आश्वासन" : "Quality Assurance",
+      description:
+        language === "hi"
+          ? "उच्च गुणवत्ता वाले उत्पादों की गारंटी"
+          : "Guaranteed high-quality products",
+    },
+  ];
+
   return (
-    <main className="min-h-screen bg-zinc-50 px-6 py-10 text-zinc-900">
-      <div className="mx-auto max-w-4xl space-y-8">
-        <header>
-          <div className="flex items-center justify-between gap-4">
-            <h1 className="text-3xl font-bold">CodeX Dashboard</h1>
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 text-zinc-900">
+      <header className="relative z-20 bg-white/85 py-4 shadow-sm backdrop-blur-sm">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4">
+          <h1 className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-3xl font-bold text-transparent">
+            Ventrest
+          </h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setLanguage((l) => (l === "en" ? "hi" : "en"))}
+              className="inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 py-1 text-sm"
+            >
+              <Globe className="h-4 w-4" />
+              {language === "hi" ? "भाषा" : "Language"}
+            </button>
             {user ? (
-              <div className="flex items-center gap-3 text-sm">
-                <span className="text-zinc-600">
-                  Signed in as {user.name} ({user.role})
-                </span>
+              <>
                 <Link
                   href={user.role === "supplier" ? "/supplier" : "/buyer"}
-                  className="rounded-md border border-zinc-300 px-3 py-1 hover:bg-zinc-100"
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-sm"
                 >
-                  Open {user.role === "supplier" ? "Supplier" : "Buyer"} Dashboard
+                  {language === "hi" ? "डैशबोर्ड" : "Dashboard"}
                 </Link>
                 <button
-                  onClick={handleLogout}
-                  className="rounded-md border border-zinc-300 px-3 py-1 hover:bg-zinc-100"
+                  onClick={logout}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1 text-sm text-red-700"
                 >
-                  Logout
+                  {language === "hi" ? "लॉगआउट" : "Logout"}
                 </button>
-              </div>
-            ) : (
-              <Link
-                href="/login"
-                className="rounded-md border border-zinc-300 px-3 py-1 text-sm hover:bg-zinc-100"
-              >
-                Login
-              </Link>
-            )}
+              </>
+            ) : null}
           </div>
-          <p className="mt-2 text-sm text-zinc-600">
-            Frontend: Next.js | Backend API: {apiBase}
+        </div>
+      </header>
+
+      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-72px)] max-w-6xl flex-col items-center justify-center px-6 py-10 text-center">
+        <div className="mb-6">
+          <h2 className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-5xl font-black text-transparent md:text-6xl">
+            {language === "hi" ? "वेंटरेस्ट" : "Ventrest"}
+          </h2>
+          <p className="mt-3 text-xl font-bold md:text-2xl">
+            {language === "hi" ? "सड़क भोजन में नई क्रांति!" : "Street Food Revolution!"}
           </p>
-        </header>
+          <p className="mx-auto mt-3 max-w-3xl text-base text-zinc-600 md:text-lg">
+            {language === "hi"
+              ? "सड़क भोजन व्यवसायों को विश्वसनीय आपूर्तिकर्ताओं से जोड़ने वाला एक अभिनव मंच"
+              : "An innovative platform connecting street food businesses with trusted suppliers"}
+          </p>
+        </div>
 
-        {user ? (
-          <section className="rounded-xl border border-zinc-200 bg-white p-5">
-            <h2 className="text-lg font-semibold">Your Analytics</h2>
-            {analyticsError ? <p className="mt-2 text-sm text-red-600">{analyticsError}</p> : null}
-
-            {user.role === "supplier" && supplierAnalytics ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <StatsCard label="Total Products" value={supplierAnalytics.totalProducts} />
-                <StatsCard label="Active Products" value={supplierAnalytics.activeProducts} />
-                <StatsCard label="Total Orders" value={supplierAnalytics.totalOrders} />
-                <StatsCard
-                  label="This Month Revenue"
-                  value={formatCurrency(supplierAnalytics.monthRevenue)}
-                />
-              </div>
-            ) : null}
-
-            {(user.role === "buyer" || user.role === "admin") && buyerAnalytics ? (
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <StatsCard label="Total Orders" value={buyerAnalytics.totalOrders} />
-                  <StatsCard label="This Month Orders" value={buyerAnalytics.monthOrders} />
-                  <StatsCard label="Total Spent" value={formatCurrency(buyerAnalytics.totalSpent)} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Recent Orders</p>
-                  <ul className="mt-2 space-y-2">
-                    {buyerAnalytics.recentOrders.map((order) => (
-                      <li
-                        key={order._id}
-                        className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm"
-                      >
-                        <span className="font-medium">{formatCurrency(order.totalAmount)}</span>{" "}
-                        <span className="text-zinc-600">· {order.status}</span>{" "}
-                        <span className="text-zinc-500">· {formatDateTime(order.createdAt)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-
-        <section className="rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-lg font-semibold">Backend Health</h2>
-          {loading && <p className="mt-2 text-sm text-zinc-600">Checking backend...</p>}
-          {!loading && error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          {!loading && !error && health && (
-            <div className="mt-3 space-y-1 text-sm">
-              <p>Status: {health.status}</p>
-              <p>Uptime: {Math.round(health.uptime)}s</p>
-              <p>Timestamp: {formatDateTime(health.timestamp)}</p>
+        <div className="mb-6 grid w-full max-w-4xl gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600">
+              <UserPlus className="h-6 w-6 text-white" />
             </div>
-          )}
-        </section>
+            <h3 className="mb-3 text-xl font-bold">
+              {language === "hi" ? "स्ट्रीट फूड वेंडर" : "Street Food Vendor"}
+            </h3>
+            <p className="mb-4 text-sm text-zinc-600">
+              {language === "hi"
+                ? "अपने व्यवसाय को बढ़ाएं और गुणवत्तापूर्ण आपूर्तिकर्ताओं से जुड़ें"
+                : "Grow your business and connect with quality suppliers"}
+            </p>
+            <button
+              onClick={() => setModal("vendor")}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 text-base font-semibold text-white"
+            >
+              {language === "hi" ? "वेंडर पंजीकरण" : "Vendor Registration"}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
 
-        <section className="rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-lg font-semibold">Products</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            {products.length} item(s) fetched from `/api/products`
-          </p>
-          <ul className="mt-4 space-y-3">
-            {products.map((product) => (
-              <li
-                key={product._id}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3"
-              >
-                <p className="font-medium">{product.name}</p>
-                <p className="text-sm text-zinc-600">
-                  {product.category} · {product.stock} {product.unit} in stock
-                </p>
-                <p className="text-sm font-medium">Rs. {product.price}</p>
-              </li>
+          <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-green-600">
+              <Store className="h-6 w-6 text-white" />
+            </div>
+            <h3 className="mb-3 text-xl font-bold">{language === "hi" ? "आपूर्तिकर्ता" : "Supplier"}</h3>
+            <p className="mb-4 text-sm text-zinc-600">
+              {language === "hi"
+                ? "अपने उत्पादों को नए ग्राहकों तक पहुंचाएं और बिक्री बढ़ाएं"
+                : "Reach new customers and increase sales with your products"}
+            </p>
+            <button
+              onClick={() => setModal("supplier")}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-4 py-3 text-base font-semibold text-white"
+            >
+              {language === "hi" ? "आपूर्तिकर्ता पंजीकरण" : "Supplier Registration"}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {!user ? (
+          <div className="mb-8 rounded-2xl border border-white/20 bg-white/80 p-5 shadow-lg backdrop-blur-sm">
+            <p className="mb-3 text-sm text-zinc-700">
+              {language === "hi" ? "पहले से ही खाता है?" : "Already have an account?"}
+            </p>
+            <button
+              onClick={() => setModal("login")}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-2 text-sm font-semibold text-white"
+            >
+              <CheckCircle className="h-4 w-4" />
+              {language === "hi" ? "यहाँ लॉगिन करें" : "Login Here"}
+            </button>
+          </div>
+        ) : (
+          <div className="mb-8 rounded-2xl border border-white/20 bg-white/80 p-5 shadow-lg backdrop-blur-sm">
+            <p className="mb-3 text-sm text-zinc-700">
+              {language === "hi" ? "स्वागत है" : "Welcome"}, {user.name}
+            </p>
+            <Link
+              href={user.role === "supplier" ? "/supplier" : "/buyer"}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-2 text-sm font-semibold text-white"
+            >
+              {language === "hi" ? "डैशबोर्ड खोलें" : "Open Dashboard"}
+            </Link>
+          </div>
+        )}
+
+        <div className="w-full max-w-5xl">
+          <h3 className="mb-5 text-2xl font-bold">
+            {language === "hi" ? "क्यों वेंटरेस्ट चुनें?" : "Why Choose Ventrest?"}
+          </h3>
+          <div className="grid gap-4 md:grid-cols-3">
+            {features.map((feature, i) => (
+              <div key={i} className="rounded-xl border border-white/20 bg-white/70 p-4 text-left">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 text-white">
+                  {feature.icon}
+                </div>
+                <h4 className="mb-1 text-lg font-semibold">{feature.title}</h4>
+                <p className="text-sm text-zinc-600">{feature.description}</p>
+              </div>
             ))}
-            {!loading && !error && products.length === 0 && (
-              <li className="text-sm text-zinc-500">No products yet.</li>
-            )}
-          </ul>
-        </section>
-      </div>
-    </main>
+          </div>
+        </div>
+      </main>
+
+      {modal === "login" ? (
+        <AuthModal
+          language={language}
+          title={language === "hi" ? "लॉग इन करें" : "Login"}
+          subtitle={
+            language === "hi" ? "अपने खाते में लॉगिन करें" : "Sign in to your account"
+          }
+          gradientClass="bg-gradient-to-r from-purple-500 to-purple-600"
+          onClose={() => setModal(null)}
+          fields={[
+            { key: "email", labelEn: "Email", labelHi: "ईमेल", type: "email", required: true },
+            {
+              key: "password",
+              labelEn: "Password",
+              labelHi: "पासवर्ड",
+              type: "password",
+              required: true,
+            },
+          ]}
+          submitLabelEn="Login"
+          submitLabelHi="लॉगिन करें"
+          onSubmit={async (values) => {
+            await loginUser(values.email, values.password);
+          }}
+        />
+      ) : null}
+
+      {modal === "vendor" ? (
+        <AuthModal
+          language={language}
+          title={language === "hi" ? "वेंडर पंजीकरण" : "Vendor Registration"}
+          subtitle={
+            language === "hi" ? "अपना स्ट्रीट फूड व्यवसाय शुरू करें" : "Start your street food business"
+          }
+          gradientClass="bg-gradient-to-r from-blue-500 to-blue-600"
+          onClose={() => setModal(null)}
+          fields={[
+            { key: "name", labelEn: "Full Name", labelHi: "पूरा नाम", required: true },
+            { key: "email", labelEn: "Email", labelHi: "ईमेल", type: "email", required: true },
+            { key: "phone", labelEn: "Phone Number", labelHi: "फोन नंबर", required: true },
+            {
+              key: "password",
+              labelEn: "Password",
+              labelHi: "पासवर्ड",
+              type: "password",
+              required: true,
+            },
+            {
+              key: "confirmPassword",
+              labelEn: "Confirm Password",
+              labelHi: "पासवर्ड की पुष्टि करें",
+              type: "password",
+              required: true,
+            },
+          ]}
+          submitLabelEn="Register"
+          submitLabelHi="पंजीकरण करें"
+          onSubmit={async (values) => {
+            await register({
+              name: values.name,
+              email: values.email,
+              password: values.password,
+              role: "buyer",
+              phone: values.phone,
+            });
+          }}
+        />
+      ) : null}
+
+      {modal === "supplier" ? (
+        <AuthModal
+          language={language}
+          title={language === "hi" ? "आपूर्तिकर्ता पंजीकरण" : "Supplier Registration"}
+          subtitle={
+            language === "hi" ? "अपने उत्पादों को बेचना शुरू करें" : "Start selling your products"
+          }
+          gradientClass="bg-gradient-to-r from-green-500 to-green-600"
+          onClose={() => setModal(null)}
+          fields={[
+            { key: "name", labelEn: "Full Name", labelHi: "पूरा नाम", required: true },
+            { key: "email", labelEn: "Email", labelHi: "ईमेल", type: "email", required: true },
+            {
+              key: "businessName",
+              labelEn: "Business Name",
+              labelHi: "व्यवसाय का नाम",
+              required: true,
+            },
+            { key: "gstin", labelEn: "GSTIN", labelHi: "GSTIN", required: true },
+            { key: "phone", labelEn: "Phone Number", labelHi: "फोन नंबर", required: true },
+            {
+              key: "password",
+              labelEn: "Password",
+              labelHi: "पासवर्ड",
+              type: "password",
+              required: true,
+            },
+            {
+              key: "confirmPassword",
+              labelEn: "Confirm Password",
+              labelHi: "पासवर्ड की पुष्टि करें",
+              type: "password",
+              required: true,
+            },
+          ]}
+          submitLabelEn="Register"
+          submitLabelHi="पंजीकरण करें"
+          onSubmit={async (values) => {
+            await register({
+              name: values.name,
+              email: values.email,
+              password: values.password,
+              role: "supplier",
+              phone: values.phone,
+              businessName: values.businessName,
+              gstin: values.gstin,
+            });
+          }}
+        />
+      ) : null}
+    </div>
   );
 }
