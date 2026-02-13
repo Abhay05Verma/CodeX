@@ -58,6 +58,7 @@ export type Product = {
   unit: string;
   stock: number;
   category: string;
+  supplier?: string | { _id: string; name?: string; email?: string };
 };
 
 export type ProductsResponse = {
@@ -87,6 +88,35 @@ export type SupplierAnalytics = {
 export const api = {
   getHealth: () => request<HealthResponse>("/health"),
   getProducts: () => request<ProductsResponse>("/api/products"),
+  createProduct: (
+    token: string,
+    payload: {
+      name: string;
+      description: string;
+      price: number;
+      stock: number;
+      category: string;
+      unit: string;
+      status?: string;
+      image?: string;
+    }
+  ) => request<{ product: Product }>("/api/products", { token, method: "POST", body: JSON.stringify(payload) }),
+  updateProduct: (
+    token: string,
+    id: string,
+    payload: {
+      name: string;
+      description: string;
+      price: number;
+      stock: number;
+      category: string;
+      unit: string;
+      status?: string;
+      image?: string;
+    }
+  ) => request<{ product: Product }>(`/api/products/${id}`, { token, method: "PUT", body: JSON.stringify(payload) }),
+  deleteProduct: (token: string, id: string) =>
+    request<Record<string, never>>(`/api/products/${id}`, { token, method: "DELETE" }),
   getBuyerAnalytics: (token: string) =>
     request<BuyerAnalytics>("/api/analytics/buyer-summary", { token }),
   getSupplierAnalytics: (token: string) =>

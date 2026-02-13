@@ -9,9 +9,22 @@ import { formatCurrency } from "@/lib/format";
 
 export default function SupplierDashboardPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<SupplierAnalytics | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    price: 0,
+    stock: 0,
+    category: "ingredients",
+    unit: "kg",
+    status: "active",
+    image: "",
+  });
 
   useEffect(() => {
     getMe()
@@ -27,19 +40,92 @@ export default function SupplierDashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    const token = getStoredToken();
-    if (!token) return;
+    const authToken = getStoredToken();
+    if (!authToken) return;
+    setToken(authToken);
 
-    Promise.all([api.getSupplierAnalytics(token), api.getProducts()])
+    Promise.all([api.getSupplierAnalytics(authToken), api.getProducts()])
       .then(([analyticsData, productsData]) => {
         setAnalytics(analyticsData);
         const allProducts = productsData.products || [];
         setProducts(
-          user.role === "admin" ? allProducts : allProducts.filter((p) => Boolean(p._id))
+          user.role === "admin"
+            ? allProducts
+            : allProducts.filter((p) => {
+                const supplierId =
+                  typeof p.supplier === "string" ? p.supplier : p.supplier?._id;
+                return supplierId === user.id;
+              })
         );
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load supplier dashboard"));
   }, [user]);
+
+  function resetForm() {
+    setEditingId(null);
+    setForm({
+      name: "",
+      description: "",
+      price: 0,
+      stock: 0,
+      category: "ingredients",
+      unit: "kg",
+      status: "active",
+      image: "",
+    });
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!token) {
+      setError("Authentication required");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+
+      if (editingId) {
+        const result = await api.updateProduct(token, editingId, form);
+        setProducts((prev) => prev.map((p) => (p._id === editingId ? result.product : p)));
+      } else {
+        const result = await api.createProduct(token, form);
+        setProducts((prev) => [result.product, ...prev]);
+      }
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save product");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function startEdit(product: Product) {
+    setEditingId(product._id);
+    setForm({
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      stock: product.stock,
+      category: product.category,
+      unit: product.unit,
+      status: "active",
+      image: "",
+    });
+  }
+
+  async function removeProduct(id: string) {
+    if (!token) return;
+    try {
+      setError(null);
+      await api.deleteProduct(token, id);
+      setProducts((prev) => prev.filter((p) => p._id !== id));
+      if (editingId === id) resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete product");
+    }
+  }
 
   function logout() {
     clearAuth();
@@ -82,6 +168,84 @@ export default function SupplierDashboardPage() {
         ) : null}
 
         <section className="rounded-xl border border-zinc-200 bg-white p-5">
+          <h2 className="text-lg font-semibold">
+            {editingId ? "Edit Product" : "Create Product"}
+          </h2>
+          <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={handleSubmit}>
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="Name"
+              value={form.name}
+              onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))}
+              required
+            />
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="Category"
+              value={form.category}
+              onChange={(e) => setForm((v) => ({ ...v, category: e.target.value }))}
+              required
+            />
+            <input
+              type="number"
+              min="0"
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="Price"
+              value={form.price}
+              onChange={(e) => setForm((v) => ({ ...v, price: Number(e.target.value) }))}
+              required
+            />
+            <input
+              type="number"
+              min="0"
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="Stock"
+              value={form.stock}
+              onChange={(e) => setForm((v) => ({ ...v, stock: Number(e.target.value) }))}
+              required
+            />
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="Unit"
+              value={form.unit}
+              onChange={(e) => setForm((v) => ({ ...v, unit: e.target.value }))}
+              required
+            />
+            <input
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="Image URL (optional)"
+              value={form.image}
+              onChange={(e) => setForm((v) => ({ ...v, image: e.target.value }))}
+            />
+            <textarea
+              className="sm:col-span-2 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="Description"
+              value={form.description}
+              onChange={(e) => setForm((v) => ({ ...v, description: e.target.value }))}
+              required
+            />
+            <div className="sm:col-span-2 flex gap-2">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {submitting ? "Saving..." : editingId ? "Update Product" : "Create Product"}
+              </button>
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100"
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </section>
+
+        <section className="rounded-xl border border-zinc-200 bg-white p-5">
           <h2 className="text-lg font-semibold">Product Catalog</h2>
           <p className="mt-1 text-sm text-zinc-600">{products.length} item(s)</p>
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -92,6 +256,20 @@ export default function SupplierDashboardPage() {
                   {product.category} · {product.stock} {product.unit}
                 </p>
                 <p className="text-sm font-medium">{formatCurrency(product.price)}</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => startEdit(product)}
+                    className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => removeProduct(product._id)}
+                    className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
