@@ -17,15 +17,15 @@ router.get("/my-orders", protect, listMyOrders);
 router.get(
   "/supplier-orders",
   protect,
-  authorizeRoles("supplier", "admin"),
+  authorizeRoles("supplier", "buyer", "admin"),
   listSupplierOrders
 );
 
 router.get("/:id", protect, getOrder);
 
-router.post("/", protect, authorizeRoles("buyer", "admin"), validateOrderCreate, createOrder);
+router.post("/", protect, authorizeRoles("buyer", "customer", "admin"), validateOrderCreate, createOrder);
 
-router.patch("/:id/status", protect, authorizeRoles("supplier", "admin"), updateOrderStatus);
+router.patch("/:id/status", protect, authorizeRoles("supplier", "buyer", "admin"), updateOrderStatus);
 
 router.post("/:id/review", protect, authorizeRoles("buyer", "admin"), addReview);
 

@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["buyer", "supplier", "admin"],
+      enum: ["buyer", "supplier", "customer", "admin"],
       default: "buyer",
     },
     phone: { type: String, trim: true },
@@ -35,6 +35,7 @@ const userSchema = new mongoose.Schema(
     lastLogin: { type: Date },
     businessName: { type: String, trim: true },
     gstin: { type: String, trim: true },
+    isLoanProvider: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

@@ -1,4 +1,5 @@
 const Product = require("../models/Product");
+const User = require("../models/User");
 
 function buildListQuery(query = {}) {
   const {
@@ -41,6 +42,16 @@ function buildListQuery(query = {}) {
 
 async function listProducts(query) {
   const { filter, sortBy, pageNumber, pageSize } = buildListQuery(query);
+
+  if (query.vendorOnly === "true" || query.vendorOnly === true) {
+    const vendorUsers = await User.find({ role: "buyer" }, "_id").lean();
+    filter.supplier = { $in: vendorUsers.map((u) => u._id) };
+  }
+  if (query.supplierOnly === "true" || query.supplierOnly === true) {
+    const supplierUsers = await User.find({ role: "supplier" }, "_id").lean();
+    filter.supplier = { $in: supplierUsers.map((u) => u._id) };
+  }
+
   const [products, total] = await Promise.all([
     Product.find(filter)
       .populate("supplier", "name email")
@@ -67,7 +78,7 @@ async function getProductById(id) {
 
 async function createProduct(payload, user) {
   const data = { ...(payload || {}) };
-  if (user?.role === "supplier") data.supplier = user.id;
+  if (user?.role === "supplier" || user?.role === "buyer") data.supplier = user.id;
   if (!data.supplier) throw new Error("supplier is required");
   return Product.create(data);
 }

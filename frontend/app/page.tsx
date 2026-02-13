@@ -23,7 +23,8 @@ import { api } from "@/lib/api";
 import { getMe, getStoredToken, register, type AuthUser, login as loginUser } from "@/lib/auth";
 
 type Language = "en" | "hi";
-type ModalType = "login" | "vendor" | "supplier" | null;
+type ModalType = "login" | "vendor" | "supplier" | "customer" | null;
+type LoginAsRole = "vendor" | "supplier"; // for UX only; backend returns actual role
 
 type BaseAuthFormProps = {
   language: Language;
@@ -35,6 +36,12 @@ type BaseAuthFormProps = {
   fields: Array<{ key: string; labelEn: string; labelHi: string; type?: string; required?: boolean }>;
   submitLabelEn: string;
   submitLabelHi: string;
+  /** If set, show "Sign in as Vendor / Supplier" choice in the form (login only) */
+  loginAsOptions?: { value: LoginAsRole; labelEn: string; labelHi: string }[];
+  loginAs?: LoginAsRole;
+  onLoginAsChange?: (value: LoginAsRole) => void;
+  /** Test credentials for login: show labels and "Use" buttons to fill form */
+  testCredentials?: { label: string; email: string; password: string }[];
 };
 
 function AuthModal({
@@ -47,6 +54,10 @@ function AuthModal({
   fields,
   submitLabelEn,
   submitLabelHi,
+  loginAsOptions,
+  loginAs = "vendor",
+  onLoginAsChange,
+  testCredentials,
 }: BaseAuthFormProps) {
   const initialState = useMemo(() => {
     const s: Record<string, string> = {};
@@ -107,7 +118,9 @@ function AuthModal({
       const user = await onSubmit(form);
       onClose();
       if (user) {
-        window.location.href = user.role === "supplier" ? "/supplier" : "/buyer";
+        if (user.role === "supplier") window.location.href = "/supplier";
+        else if (user.role === "customer") window.location.href = "/customer";
+        else window.location.href = "/buyer";
       } else {
         window.location.href = "/";
       }
@@ -138,6 +151,51 @@ function AuthModal({
           <p className="mt-2 text-center text-sm text-white/90">{subtitle}</p>
         </div>
         <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto p-6">
+          {testCredentials && testCredentials.length > 0 && fields.some((f) => f.key === "email" && fields.some((p) => p.key === "password")) ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                {language === "hi" ? "टेस्ट लॉगिन" : "Test credentials"}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {testCredentials.map((cred) => (
+                  <button
+                    key={cred.email}
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, email: cred.email, password: cred.password }));
+                      setError(null);
+                    }}
+                    className="rounded bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"
+                  >
+                    {cred.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {loginAsOptions && onLoginAsChange ? (
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-gray-700">
+                {language === "hi" ? "लॉग इन करें जैसे" : "Sign in as"}
+              </span>
+              <div className="flex gap-3 rounded-lg border border-gray-200 bg-gray-50 p-2">
+                {loginAsOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onLoginAsChange(opt.value)}
+                    className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
+                      loginAs === opt.value
+                        ? "bg-white text-indigo-600 shadow"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    {language === "hi" ? opt.labelHi : opt.labelEn}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {fields.map((field) => {
             const isPassword = field.type === "password";
             const isConfirm = field.key === "confirmPassword";
@@ -203,9 +261,13 @@ function AuthModal({
   );
 }
 
+type LoginContext = "vendor_supplier" | "customer";
+
 export default function HomePage() {
   const [language, setLanguage] = useState<Language>("en");
   const [modal, setModal] = useState<ModalType>(null);
+  const [loginAs, setLoginAs] = useState<LoginAsRole>("vendor");
+  const [loginContext, setLoginContext] = useState<LoginContext | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -276,7 +338,13 @@ export default function HomePage() {
             </button>
             {user ? (
               <Link
-                href={user.role === "supplier" ? "/supplier" : "/buyer"}
+                href={
+                  user.role === "supplier"
+                    ? "/supplier"
+                    : user.role === "customer"
+                      ? "/customer"
+                      : "/buyer"
+                }
                 className="relative inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-300 hover:bg-indigo-700"
               >
                 {language === "hi" ? "डैशबोर्ड" : "Dashboard"}
@@ -354,6 +422,30 @@ export default function HomePage() {
               </button>
             </div>
           </div>
+
+          <div className="group flex-1">
+            <div className="flex h-full flex-col rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-600 transition-transform duration-300 group-hover:scale-110">
+                <User className="h-6 w-6 text-white" />
+              </div>
+              <h3 className="mb-3 text-xl font-bold text-gray-800">
+                {language === "hi" ? "ग्राहक" : "I'm a Customer"}
+              </h3>
+              <p className="mb-4 flex-1 text-sm leading-relaxed text-gray-600">
+                {language === "hi"
+                  ? "वेंडर्स से खरीदें, फेवरेट्स और कार्ट का उपयोग करें"
+                  : "Shop from vendors, use favorites and cart"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setModal("customer")}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-3 text-base font-semibold text-white transition-all duration-300 hover:scale-[1.02] hover:from-amber-600 hover:to-orange-700"
+              >
+                {language === "hi" ? "ग्राहक पंजीकरण" : "Customer Sign up"}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {!user ? (
@@ -370,19 +462,27 @@ export default function HomePage() {
               {language === "hi" ? "यहाँ लॉगिन करें" : "Login Here"}
             </button>
           </div>
-        ) : (
+        ) : null}
+
+        {user ? (
           <div className="mb-8 max-w-md rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
             <p className="mb-3 text-base text-gray-700">
               {language === "hi" ? "स्वागत है" : "Welcome"}, {user.name}
             </p>
             <Link
-              href={user.role === "supplier" ? "/supplier" : "/buyer"}
+              href={
+                user.role === "supplier"
+                  ? "/supplier"
+                  : user.role === "customer"
+                    ? "/customer"
+                    : "/buyer"
+              }
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white transition-all duration-300 hover:scale-[1.02] hover:from-indigo-600 hover:to-purple-600"
             >
               {language === "hi" ? "डैशबोर्ड खोलें" : "Open Dashboard"}
             </Link>
           </div>
-        )}
+        ) : null}
 
         <div className="w-full max-w-5xl">
           <h3 className="mb-6 text-2xl font-bold text-gray-800">
@@ -410,10 +510,31 @@ export default function HomePage() {
           language={language}
           title={language === "hi" ? "लॉग इन करें" : "Login"}
           subtitle={
-            language === "hi" ? "अपने खाते में लॉगिन करें" : "Sign in to your account"
+            loginContext === "vendor_supplier"
+              ? language === "hi"
+                ? "वेंडर या आपूर्तिकर्ता के रूप में साइन इन करें"
+                : "Sign in as vendor or supplier"
+              : language === "hi"
+                ? "अपने खाते में साइन इन करें"
+                : "Sign in to your account"
           }
-          gradientClass="bg-gradient-to-r from-purple-500 to-purple-600"
-          onClose={() => setModal(null)}
+          gradientClass="bg-gradient-to-r from-indigo-500 to-purple-600"
+          onClose={() => { setModal(null); setLoginContext(null); }}
+          loginAsOptions={
+            loginContext === "vendor_supplier"
+              ? [
+                  { value: "vendor", labelEn: "Vendor (street food)", labelHi: "वेंडर (स्ट्रीट फूड)" },
+                  { value: "supplier", labelEn: "Supplier", labelHi: "आपूर्तिकर्ता" },
+                ]
+              : undefined
+          }
+          loginAs={loginAs}
+          onLoginAsChange={setLoginAs}
+          testCredentials={[
+            { label: "Customer", email: "customer@test.com", password: "customer123" },
+            { label: "Vendor", email: "vendor@test.com", password: "vendor123" },
+            { label: "Supplier", email: "supplier@test.com", password: "supplier123" },
+          ]}
           fields={[
             { key: "email", labelEn: "Email", labelHi: "ईमेल", type: "email", required: true },
             {
@@ -520,6 +641,48 @@ export default function HomePage() {
               phone: values.phone,
               businessName: values.businessName,
               gstin: values.gstin,
+            });
+          }}
+        />
+      ) : null}
+
+      {modal === "customer" ? (
+        <AuthModal
+          language={language}
+          title={language === "hi" ? "ग्राहक पंजीकरण" : "Customer Sign up"}
+          subtitle={
+            language === "hi" ? "वेंडर्स से खरीदारी शुरू करें" : "Start shopping from vendors"
+          }
+          gradientClass="bg-gradient-to-r from-amber-500 to-orange-600"
+          onClose={() => setModal(null)}
+          fields={[
+            { key: "name", labelEn: "Full Name", labelHi: "पूरा नाम", required: true },
+            { key: "email", labelEn: "Email", labelHi: "ईमेल", type: "email", required: true },
+            { key: "phone", labelEn: "Phone Number", labelHi: "फोन नंबर", required: false },
+            {
+              key: "password",
+              labelEn: "Password",
+              labelHi: "पासवर्ड",
+              type: "password",
+              required: true,
+            },
+            {
+              key: "confirmPassword",
+              labelEn: "Confirm Password",
+              labelHi: "पासवर्ड की पुष्टि करें",
+              type: "password",
+              required: true,
+            },
+          ]}
+          submitLabelEn="Register"
+          submitLabelHi="पंजीकरण करें"
+          onSubmit={async (values) => {
+            return register({
+              name: values.name,
+              email: values.email,
+              password: values.password,
+              role: "customer",
+              phone: values.phone || undefined,
             });
           }}
         />

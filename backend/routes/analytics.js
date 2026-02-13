@@ -1,5 +1,5 @@
 const express = require("express");
-const { protect } = require("../middleware/auth");
+const { protect, authorizeRoles } = require("../middleware/auth");
 const {
   buyerSummary,
   supplierSummary,
@@ -7,7 +7,7 @@ const {
 
 const router = express.Router();
 
-router.get("/buyer-summary", protect, buyerSummary);
-router.get("/supplier-summary", protect, supplierSummary);
+router.get("/buyer-summary", protect, authorizeRoles("buyer", "customer", "admin"), buyerSummary);
+router.get("/supplier-summary", protect, authorizeRoles("supplier", "buyer", "admin"), supplierSummary);
 
 module.exports = router;

@@ -1,5 +1,7 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:3000";
+  typeof window !== "undefined"
+    ? ""
+    : (process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:3000");
 
 const TOKEN_KEY = "codex_token";
 const USER_KEY = "codex_user";
@@ -8,14 +10,14 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
-  role: "buyer" | "supplier" | "admin";
+  role: "buyer" | "supplier" | "customer" | "admin";
 };
 
 type RegisterPayload = {
   name: string;
   email: string;
   password: string;
-  role: "buyer" | "supplier";
+  role: "buyer" | "supplier" | "customer";
   phone?: string;
   businessName?: string;
   gstin?: string;

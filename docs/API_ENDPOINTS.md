@@ -63,6 +63,22 @@ All `/api/*` responses use envelope: `{ success, message?, data?, error? }`. Use
 
 ---
 
+## Customer (`/api/customer`)
+
+All routes require Customer or Admin role.
+
+| Method | Path              | Description                          |
+|--------|-------------------|--------------------------------------|
+| GET    | /me               | Get customer profile (favorites, cart, lending) |
+| PUT    | /me               | Update profile (e.g. isLendingActive, totalLentAmount, impactBadges) |
+| GET    | /cart             | Get cart (per-vendor items)          |
+| PUT    | /cart             | Update cart (body: cart array)       |
+| GET    | /favorites        | Get favorite vendors                 |
+| POST   | /favorites/:vendorId | Add vendor to favorites           |
+| DELETE | /favorites/:vendorId | Remove vendor from favorites      |
+
+---
+
 ## Auth header
 
 For protected routes send:

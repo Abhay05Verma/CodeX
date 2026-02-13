@@ -13,10 +13,10 @@ const {
 const router = express.Router();
 
 router.get("/", listProducts);
-router.get("/my-products", protect, authorizeRoles("supplier", "admin"), listMyProducts);
+router.get("/my-products", protect, authorizeRoles("supplier", "buyer", "admin"), listMyProducts);
 router.get("/:id", getProduct);
-router.post("/", protect, authorizeRoles("supplier", "admin"), validateProduct, createProduct);
-router.put("/:id", protect, authorizeRoles("supplier", "admin"), validateProduct, updateProduct);
-router.delete("/:id", protect, authorizeRoles("supplier", "admin"), deleteProduct);
+router.post("/", protect, authorizeRoles("supplier", "buyer", "admin"), validateProduct, createProduct);
+router.put("/:id", protect, authorizeRoles("supplier", "buyer", "admin"), validateProduct, updateProduct);
+router.delete("/:id", protect, authorizeRoles("supplier", "buyer", "admin"), deleteProduct);
 
 module.exports = router;

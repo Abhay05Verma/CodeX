@@ -1,5 +1,7 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:3000";
+  typeof window !== "undefined"
+    ? ""
+    : (process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:3000");
 
 type ApiOptions = RequestInit & {
   token?: string;
@@ -118,6 +120,8 @@ export type ProductsQuery = {
   page?: number | string;
   limit?: number | string;
   sort?: "latest" | "price_asc" | "price_desc";
+  vendorOnly?: boolean | string;
+  supplierOnly?: boolean | string;
 };
 
 export const api = {
@@ -172,8 +176,93 @@ export const api = {
       items: Array<{ productId: string; quantity: number }>;
     }
   ) => request<{ order: Order }>("/api/orders", { token, method: "POST", body: JSON.stringify(payload) }),
+  updateOrderStatus: (token: string, orderId: string, status: string) =>
+    request<{ order: Order }>(`/api/orders/${orderId}/status`, {
+      token,
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
   getBuyerAnalytics: (token: string) =>
     request<BuyerAnalytics>("/api/analytics/buyer-summary", { token }),
   getSupplierAnalytics: (token: string) =>
     request<SupplierAnalytics>("/api/analytics/supplier-summary", { token }),
+
+  // Customer (vendors = suppliers in CodeX)
+  getCustomerProfile: (token: string) =>
+    request<{ customer: CustomerProfile }>("/api/customer/me", { token }),
+  updateCustomerProfile: (
+    token: string,
+    payload: { isLendingActive?: boolean; totalLentAmount?: number; impactBadges?: string[] }
+  ) => request<{ customer: CustomerProfile }>("/api/customer/me", { token, method: "PUT", body: JSON.stringify(payload) }),
+  getCustomerCart: (token: string) => request<{ cart: CustomerCartVendor[] }>("/api/customer/cart", { token }),
+  updateCustomerCart: (token: string, cart: CustomerCartVendor[]) =>
+    request<{ cart: CustomerCartVendor[] }>("/api/customer/cart", { token, method: "PUT", body: JSON.stringify({ cart }) }),
+  getCustomerFavorites: (token: string) =>
+    request<{ favorites: Array<{ _id: string; name?: string; email?: string }> }>("/api/customer/favorites", { token }),
+  addCustomerFavorite: (token: string, vendorId: string) =>
+    request<{ favorites: Array<{ _id: string; name?: string; email?: string }> }>(
+      `/api/customer/favorites/${vendorId}`,
+      { token, method: "POST" }
+    ),
+  removeCustomerFavorite: (token: string, vendorId: string) =>
+    request<{ favorites: Array<{ _id: string; name?: string; email?: string }> }>(
+      `/api/customer/favorites/${vendorId}`,
+      { token, method: "DELETE" }
+    ),
+
+  // Loan from Customer
+  getLoanProviders: (token: string) =>
+    request<{ providers: LoanProvider[] }>("/api/loan-requests/providers", { token }),
+  sendLoanRequest: (token: string, customerId: string) =>
+    request<{ request: LoanRequest }>("/api/loan-requests", {
+      token,
+      method: "POST",
+      body: JSON.stringify({ customerId }),
+    }),
+  getVendorLoanRequests: (token: string) =>
+    request<{ requests: LoanRequest[] }>("/api/loan-requests/vendor", { token }),
+  getCustomerLoanRequests: (token: string) =>
+    request<{ requests: LoanRequest[] }>("/api/loan-requests/customer", { token }),
+  respondToLoanRequest: (token: string, requestId: string, status: "accepted" | "rejected") =>
+    request<{ request: LoanRequest }>(`/api/loan-requests/${requestId}/respond`, {
+      token,
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+};
+
+export type LoanProvider = {
+  _id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+};
+
+export type LoanRequest = {
+  _id: string;
+  vendorId: string | { _id: string; name?: string; email?: string };
+  customerId: string | { _id: string; name?: string; email?: string };
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
+};
+
+export type CustomerProfile = {
+  _id: string;
+  userId: string;
+  favorites: Array<{ _id: string; name?: string; email?: string }>;
+  isLendingActive: boolean;
+  totalLentAmount: number;
+  impactBadges: string[];
+  cart: CustomerCartVendor[];
+};
+
+export type CustomerCartItem = {
+  itemName: string;
+  qty: number;
+  price: number;
+};
+
+export type CustomerCartVendor = {
+  vendorId: string | { _id: string; name?: string; email?: string };
+  items: CustomerCartItem[];
 };

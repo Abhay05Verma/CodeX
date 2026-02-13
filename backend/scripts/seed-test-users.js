@@ -27,6 +27,20 @@ const TEST_USERS = [
     businessName: "Test Supplies Co",
     gstin: "29XXXXX1234X1Z5",
   },
+  {
+    name: "Test Customer",
+    email: "customer@test.com",
+    password: "customer123",
+    role: "customer",
+    phone: "7777777777",
+  },
+  {
+    name: "Test Customer 2",
+    email: "customer2@test.com",
+    password: "customer123",
+    role: "customer",
+    phone: "6666666666",
+  },
 ];
 
 async function seed() {
@@ -67,6 +81,13 @@ async function seed() {
   console.log("Supplier:");
   console.log("  Email:    supplier@test.com");
   console.log("  Password: supplier123");
+  console.log("----------------------------------------");
+  console.log("Customer:");
+  console.log("  Email:    customer@test.com");
+  console.log("  Password: customer123");
+  console.log("Customer 2:");
+  console.log("  Email:    customer2@test.com");
+  console.log("  Password: customer123");
   console.log("----------------------------------------");
 
   await mongoose.disconnect();

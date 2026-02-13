@@ -9,6 +9,8 @@ const authRoutes = require("./routes/auth");
 const analyticsRoutes = require("./routes/analytics");
 const orderRoutes = require("./routes/orders");
 const productRoutes = require("./routes/products");
+const customerRoutes = require("./routes/customer");
+const loanRequestRoutes = require("./routes/loanRequests");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -24,6 +26,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/customer", customerRoutes);
+app.use("/api/loan-requests", loanRequestRoutes);
 
 app.get("/", (_req, res) => {
   return ok(res, { service: "CodeX backend", status: "running" }, "Backend is running");

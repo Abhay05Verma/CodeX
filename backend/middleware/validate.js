@@ -19,7 +19,7 @@ function validateRegister(req, res, next) {
   if (!isNonEmptyString(password) || password.length < 6) {
     return fail(res, 400, "password must be at least 6 characters");
   }
-  if (role && !["buyer", "supplier", "admin"].includes(role)) {
+  if (role && !["buyer", "supplier", "customer", "admin"].includes(role)) {
     return fail(res, 400, "invalid role");
   }
   if (phone != null && typeof phone !== "string") return fail(res, 400, "phone must be a string");
