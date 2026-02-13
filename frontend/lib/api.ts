@@ -85,6 +85,22 @@ export type SupplierAnalytics = {
   monthRevenue: number;
 };
 
+export type Order = {
+  _id: string;
+  buyer?: { _id: string; name?: string; email?: string } | string;
+  supplier?: { _id: string; name?: string; email?: string } | string;
+  totalAmount: number;
+  status: string;
+  notes?: string;
+  createdAt: string;
+  items: Array<{
+    product: Product | string;
+    quantity: number;
+    price: number;
+    total: number;
+  }>;
+};
+
 export const api = {
   getHealth: () => request<HealthResponse>("/health"),
   getProducts: () => request<ProductsResponse>("/api/products"),
@@ -117,6 +133,15 @@ export const api = {
   ) => request<{ product: Product }>(`/api/products/${id}`, { token, method: "PUT", body: JSON.stringify(payload) }),
   deleteProduct: (token: string, id: string) =>
     request<Record<string, never>>(`/api/products/${id}`, { token, method: "DELETE" }),
+  getMyOrders: (token: string) => request<{ orders: Order[] }>("/api/orders/my-orders", { token }),
+  createOrder: (
+    token: string,
+    payload: {
+      supplierId: string;
+      notes?: string;
+      items: Array<{ productId: string; quantity: number }>;
+    }
+  ) => request<{ order: Order }>("/api/orders", { token, method: "POST", body: JSON.stringify(payload) }),
   getBuyerAnalytics: (token: string) =>
     request<BuyerAnalytics>("/api/analytics/buyer-summary", { token }),
   getSupplierAnalytics: (token: string) =>
