@@ -5,6 +5,13 @@ type ApiOptions = RequestInit & {
   token?: string;
 };
 
+type ApiEnvelope<T> = {
+  success: boolean;
+  message?: string;
+  data?: T;
+  error?: { message?: string };
+};
+
 async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { token, headers, ...rest } = options;
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -21,8 +28,17 @@ async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const payload = isJson ? await response.json() : null;
 
   if (!response.ok) {
-    const message = payload?.message || `Request failed (${response.status})`;
+    const message =
+      payload?.error?.message || payload?.message || `Request failed (${response.status})`;
     throw new Error(message);
+  }
+
+  if (payload && typeof payload === "object" && "success" in payload) {
+    const envelope = payload as ApiEnvelope<T>;
+    if (envelope.success === false) {
+      throw new Error(envelope.error?.message || envelope.message || "Request failed");
+    }
+    return (envelope.data ?? ({} as T)) as T;
   }
 
   return payload as T;

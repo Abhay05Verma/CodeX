@@ -20,6 +20,13 @@ type MeResponse = {
   user: AuthUser;
 };
 
+type ApiEnvelope<T> = {
+  success: boolean;
+  message?: string;
+  data?: T;
+  error?: { message?: string };
+};
+
 export function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);
@@ -54,9 +61,18 @@ export async function login(email: string, password: string): Promise<AuthUser> 
     body: JSON.stringify({ email, password }),
   });
 
-  const payload = (await response.json()) as Partial<LoginResponse> & { message?: string };
-  if (!response.ok || !payload.user || !payload.token) {
-    throw new Error(payload.message || "Login failed");
+  const raw = (await response.json()) as
+    | (Partial<LoginResponse> & { message?: string; error?: { message?: string } })
+    | ApiEnvelope<LoginResponse>;
+  const payload =
+    "success" in raw
+      ? (raw.data as Partial<LoginResponse> | undefined)
+      : (raw as Partial<LoginResponse>);
+  const message =
+    ("success" in raw ? raw.error?.message || raw.message : raw.error?.message || raw.message) ||
+    "Login failed";
+  if (!response.ok || !payload?.user || !payload?.token) {
+    throw new Error(message);
   }
 
   storeAuth(payload.user, payload.token);
@@ -74,9 +90,18 @@ export async function getMe(): Promise<AuthUser> {
     cache: "no-store",
   });
 
-  const payload = (await response.json()) as Partial<MeResponse> & { message?: string };
-  if (!response.ok || !payload.user) {
-    throw new Error(payload.message || "Failed to load user");
+  const raw = (await response.json()) as
+    | (Partial<MeResponse> & { message?: string; error?: { message?: string } })
+    | ApiEnvelope<MeResponse>;
+  const payload =
+    "success" in raw
+      ? (raw.data as Partial<MeResponse> | undefined)
+      : (raw as Partial<MeResponse>);
+  const message =
+    ("success" in raw ? raw.error?.message || raw.message : raw.error?.message || raw.message) ||
+    "Failed to load user";
+  if (!response.ok || !payload?.user) {
+    throw new Error(message);
   }
 
   localStorage.setItem(USER_KEY, JSON.stringify(payload.user));

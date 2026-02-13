@@ -3,15 +3,13 @@ const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const { protect, authorizeRoles } = require("../middleware/auth");
 const { validateProduct } = require("../middleware/validate");
+const { ok, fail } = require("../utils/response");
 
 const router = express.Router();
 
 router.get("/", async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({
-      message: "Database not connected",
-      products: [],
-    });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
@@ -49,7 +47,7 @@ router.get("/", async (req, res) => {
       Product.countDocuments(filter),
     ]);
 
-    return res.json({
+    return ok(res, {
       products,
       meta: {
         total,
@@ -57,34 +55,29 @@ router.get("/", async (req, res) => {
         limit: pageSize,
         totalPages: Math.max(1, Math.ceil(total / pageSize)),
       },
-    });
+    }, "Products fetched");
   } catch (error) {
-    return res.status(500).json({
-      message: "Failed to fetch products",
-      error: error.message,
-    });
+    return fail(res, 500, "Failed to fetch products", error.message);
   }
 });
 
 router.get("/:id", async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
     const product = await Product.findById(req.params.id).populate("supplier", "name email");
-    if (!product) return res.status(404).json({ message: "Product not found" });
-    return res.json({ product });
+    if (!product) return fail(res, 404, "Product not found");
+    return ok(res, { product }, "Product fetched");
   } catch (error) {
-    return res.status(400).json({ message: "Invalid product id", error: error.message });
+    return fail(res, 400, "Invalid product id", error.message);
   }
 });
 
 router.post("/", protect, authorizeRoles("supplier", "admin"), validateProduct, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({
-      message: "Database not connected",
-    });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
@@ -93,31 +86,28 @@ router.post("/", protect, authorizeRoles("supplier", "admin"), validateProduct, 
       payload.supplier = req.user.id;
     }
     if (!payload.supplier) {
-      return res.status(400).json({ message: "supplier is required" });
+      return fail(res, 400, "supplier is required");
     }
 
     const product = await Product.create(payload);
-    return res.status(201).json({ product });
+    return ok(res, { product }, "Product created", 201);
   } catch (error) {
-    return res.status(400).json({
-      message: "Failed to create product",
-      error: error.message,
-    });
+    return fail(res, 400, "Failed to create product", error.message);
   }
 });
 
 router.put("/:id", protect, authorizeRoles("supplier", "admin"), validateProduct, async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
     const existing = await Product.findById(req.params.id);
-    if (!existing) return res.status(404).json({ message: "Product not found" });
+    if (!existing) return fail(res, 404, "Product not found");
 
     const owner = String(existing.supplier);
     if (req.user.role !== "admin" && owner !== req.user.id) {
-      return res.status(403).json({ message: "You can only update your own products" });
+      return fail(res, 403, "You can only update your own products");
     }
 
     const payload = { ...(req.body || {}) };
@@ -127,30 +117,30 @@ router.put("/:id", protect, authorizeRoles("supplier", "admin"), validateProduct
       new: true,
       runValidators: true,
     });
-    return res.json({ product });
+    return ok(res, { product }, "Product updated");
   } catch (error) {
-    return res.status(400).json({ message: "Failed to update product", error: error.message });
+    return fail(res, 400, "Failed to update product", error.message);
   }
 });
 
 router.delete("/:id", protect, authorizeRoles("supplier", "admin"), async (req, res) => {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ message: "Database not connected" });
+    return fail(res, 503, "Database not connected");
   }
 
   try {
     const existing = await Product.findById(req.params.id);
-    if (!existing) return res.status(404).json({ message: "Product not found" });
+    if (!existing) return fail(res, 404, "Product not found");
 
     const owner = String(existing.supplier);
     if (req.user.role !== "admin" && owner !== req.user.id) {
-      return res.status(403).json({ message: "You can only delete your own products" });
+      return fail(res, 403, "You can only delete your own products");
     }
 
     await Product.findByIdAndDelete(req.params.id);
-    return res.json({ message: "Product deleted" });
+    return ok(res, {}, "Product deleted");
   } catch (error) {
-    return res.status(400).json({ message: "Failed to delete product", error: error.message });
+    return fail(res, 400, "Failed to delete product", error.message);
   }
 });
 
