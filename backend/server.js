@@ -1,9 +1,9 @@
 require("dotenv").config();
+require("./db");
 
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const connectDB = require("./mongo");
 const { ok } = require("./utils/response");
 const authRoutes = require("./routes/auth");
 const analyticsRoutes = require("./routes/analytics");
@@ -13,7 +13,7 @@ const customerRoutes = require("./routes/customer");
 const loanRequestRoutes = require("./routes/loanRequests");
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(
   cors({
@@ -65,34 +65,6 @@ app.get("/test-mongo", async (_req, res) => {
   }
 });
 
-let server;
-
-async function initializeServer() {
-  const dbConnected = await connectDB();
-
-  server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server is sprinting at http://localhost:${PORT}`);
-    console.log(`Health check available at http://localhost:${PORT}/health`);
-    if (!dbConnected) {
-      console.warn("MongoDB is not connected. API routes requiring DB will fail.");
-    }
-  });
-
-  const gracefulShutdown = (signal) => {
-    console.log(`\n${signal} received, shutting down gracefully...`);
-    if (server) {
-      server.close(() => {
-        console.log("Server closed.");
-        process.exit(0);
-      });
-      setTimeout(() => process.exit(1), 10000);
-    } else {
-      process.exit(0);
-    }
-  };
-
-  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-}
-
-initializeServer();
+app.listen(PORT, () => {
+  console.log(`Server is sprinting at http://localhost:${PORT}`);
+});
