@@ -43,7 +43,7 @@ async function protect(req, res, next) {
     if (!user) return res.status(401).json({ message: "User not found" });
 
     req.user = {
-      id: user._id,
+      id: String(user._id),
       name: user.name,
       email: user.email,
       role: user.role,
@@ -54,6 +54,17 @@ async function protect(req, res, next) {
   }
 }
 
+function authorizeRoles(...allowedRoles) {
+  const allowed = new Set(allowedRoles);
+  return (req, res, next) => {
+    if (!req.user || !allowed.has(req.user.role)) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
+    }
+    return next();
+  };
+}
+
 module.exports = {
   protect,
+  authorizeRoles,
 };
