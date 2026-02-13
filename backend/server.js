@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const connectDB = require("./mongo");
+const { ok } = require("./utils/response");
 const authRoutes = require("./routes/auth");
 const analyticsRoutes = require("./routes/analytics");
 const orderRoutes = require("./routes/orders");
@@ -24,22 +25,22 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/products", productRoutes);
 
 app.get("/", (_req, res) => {
-  res.send("Hello! Your Node server is officially running.");
+  return ok(res, { service: "CodeX backend", status: "running" }, "Backend is running");
 });
 
 app.get("/api/status", (_req, res) => {
-  res.json({
+  return ok(res, {
     status: "Online",
     timestamp: new Date().toISOString(),
-  });
+  }, "Status fetched");
 });
 
 app.get("/health", (_req, res) => {
-  res.status(200).json({
+  return ok(res, {
     status: "healthy",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-  });
+  }, "Health check");
 });
 
 async function initializeServer() {
